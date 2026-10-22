@@ -4,7 +4,7 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
-
+#include "pca9685.h"
 /* 按 09-16 表；你改过就以原理图为准 */
 #define KILL_PIN      23
 #define OE_LEFT_PIN   32
@@ -33,6 +33,15 @@ void app_main(void)
     /* 初始化 I2C 并扫描设备 */
     i2c_master_init(I2C_NUM_0, 21, 22);
     i2c_scan(I2C_NUM_0);
+    esp_err_t err = pca9685_init(I2C_NUM_0, PCA9685_ADDR_LEFT);
+    printf("PCA9685 left init: %s\n", esp_err_to_name(err));
+    if(err == ESP_OK) {
+        err = pca9685_init(I2C_NUM_0, PCA9685_ADDR_RIGHT);
+        printf("PCA9685 right init: %s\n", esp_err_to_name(err));
+    }
+    err = pca9685_set_pulse(I2C_NUM_0, PCA9685_ADDR_LEFT, 0, 0, 614);
+    printf("set_pulse ch0: %s\n", esp_err_to_name(err));
+
     i2c_master_init(I2C_NUM_1, 18, 19);
     i2c_scan(I2C_NUM_1);
 
