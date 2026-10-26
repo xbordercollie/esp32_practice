@@ -5,11 +5,8 @@
 #include "driver/gpio.h"
 #include "driver/i2c.h"
 #include "pca9685.h"
-/* 按 09-16 表；你改过就以原理图为准 */
-#define KILL_PIN      23
-#define OE_LEFT_PIN   32
-#define OE_RIGHT_PIN  33
-#define LED_PIN        2
+#include "power.h"
+#include "cmd.h"
 
 static void i2c_master_init(i2c_port_t port, int sda, int scl);
 static void i2c_scan(i2c_port_t port);
@@ -17,40 +14,52 @@ static void heartbeat_task(void *arg);
 
 void app_main(void)
 {
-    /* TODO 2：KILL 最先。LTC2954 的 512 ms 确认窗。
-     * 两行：先写电平，再切输出。 */
-    gpio_set_level(KILL_PIN, 1);
-    gpio_set_direction(KILL_PIN, GPIO_MODE_OUTPUT);
-    /* TODO 3：OE 两脚上电默认高（禁用）。
-     * 四行：每个脚先写高、再切输出。 */
-    gpio_set_level(OE_LEFT_PIN, 1);
-    gpio_set_direction(OE_LEFT_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(OE_RIGHT_PIN, 1);
-    gpio_set_direction(OE_RIGHT_PIN, GPIO_MODE_OUTPUT);
-    /* TODO 4：LED 配成输出。一行。 */
-    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
+    /* 初始化电源管理模块 */
+    power_init();
 
     /* 初始化 I2C 并扫描设备 */
     i2c_master_init(I2C_NUM_0, 21, 22);
     i2c_scan(I2C_NUM_0);
-    esp_err_t err = pca9685_init(I2C_NUM_0, PCA9685_ADDR_LEFT);
-    printf("PCA9685 left init: %s\n", esp_err_to_name(err));
-    if(err == ESP_OK) {
-        err = pca9685_init(I2C_NUM_0, PCA9685_ADDR_RIGHT);
-        printf("PCA9685 right init: %s\n", esp_err_to_name(err));
-    }
-    err = pca9685_set_pulse(I2C_NUM_0, PCA9685_ADDR_LEFT, 0, 0, pulse_us_to_count(servo_pulse_us(0)));
-    printf("set_pulse ch0: %s\n", esp_err_to_name(err));
-    int16_t deg_list[5] = {-900, -450, 0, 450, 900};
-    for (int i = 0; i < 5; i++) {
-        uint16_t us = servo_pulse_us(deg_list[i]);
-        printf("%d | %d | %d\n", deg_list[i], us, pulse_us_to_count(us));
+
+    /* 初始化 PCA9685 */
+    esp_err_t e_left = pca9685_init(I2C_NUM_0, PCA9685_ADDR_LEFT);
+    esp_err_t e_right = pca9685_init(I2C_NUM_0, PCA9685_ADDR_RIGHT);
+    printf("PCA9685 init: left=%s, right=%s\n", esp_err_to_name(e_left), esp_err_to_name(e_right));
+
+    if (e_left == ESP_OK) {
+        int fail = 0;
+        for (uint8_t i = 0; i <= 8; i++) {
+            if (servo_set_angle(I2C_NUM_0, i, 0) != ESP_OK) {
+                fail++;
+            }
+        }
+        printf("left mid 0..8: %d failed\n", fail);    
     }
 
+    if (e_right == ESP_OK) {
+        int fail = 0;
+        for (uint8_t i = 9; i <= 17; i++) {
+            if (servo_set_angle(I2C_NUM_0, i, 0) != ESP_OK) {
+                fail++;
+            }
+        }
+        printf("right mid 9..17: %d failed\n", fail);
+    }
+
+    /* 打开舵机电源 */
+    if(e_left == ESP_OK || e_right == ESP_OK) {
+        power_servo_on();
+        printf("Servo power on\n");
+    }else {
+        printf("Servo power not on due to PCA9685 init failure\n");
+    }
+
+    /* 初始化 I2C 并扫描设备 */
     i2c_master_init(I2C_NUM_1, 14, 27);
     i2c_scan(I2C_NUM_1);
 
-    /* TODO 5：建心跳任务。一行。 */
+    /* TODO 4：建心跳任务。一行。 */
+    xTaskCreate(cmd_task, "cmd_task", 4096, NULL, 5, NULL);
     xTaskCreate(heartbeat_task, "heartbeat_task", 2048, NULL, 5, NULL);
 }
 

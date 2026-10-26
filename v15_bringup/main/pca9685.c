@@ -5,6 +5,7 @@
 
 #define PCA9685_PWM_HZ 50
 
+/* 写地址 */
 esp_err_t pca9685_write_reg(i2c_port_t port, uint8_t addr, uint8_t reg, uint8_t val)
 {
     uint8_t buf[2] = {reg, val};
@@ -17,6 +18,14 @@ esp_err_t pca9685_read_reg(i2c_port_t port, uint8_t addr, uint8_t reg, uint8_t *
     return i2c_master_write_read_device(port, addr, &reg, 1, val, 1, pdMS_TO_TICKS(20));
 }
 
+/* 初始化 PCA9685
+ * 1. 读 MODE1
+ * 2. 设置 SLEEP=1
+ * 3. 设置 PRE_SCALE=121
+ * 4. 清 SLEEP=0
+ * 5. 等待 >500us
+ * 6. 读回并校验
+ */
 esp_err_t pca9685_init(i2c_port_t port, uint8_t addr)
 {
     uint8_t mode1 = 0, pre_scale = 0;
@@ -74,6 +83,9 @@ esp_err_t pca9685_init(i2c_port_t port, uint8_t addr)
     return ESP_OK;
 }
 
+/* 设置通道脉宽
+ * on/off 范围 0~4095
+ */
 esp_err_t pca9685_set_pulse(i2c_port_t port, uint8_t addr, uint8_t ch,
                             uint16_t on, uint16_t off)
 {
@@ -95,6 +107,11 @@ esp_err_t pca9685_set_pulse(i2c_port_t port, uint8_t addr, uint8_t ch,
     return ESP_OK;
 }
 
+/* 角度(0.1°) → 脉宽(µs)
+ * -90° → 500µs → -900
+ *  0°  → 1500µs → 0
+ * +90° → 2500µs → 900
+ */
 uint16_t servo_pulse_us(int16_t deg_x10)
 {
     /* 限幅 */
@@ -106,9 +123,30 @@ uint16_t servo_pulse_us(int16_t deg_x10)
     return (uint16_t)pulse;
 }
 
+/* 脉宽(µs) → 50Hz 计数
+ * 50Hz → 20ms周期
+ */
 uint16_t pulse_us_to_count(uint16_t us)
 {
     /* 50Hz → 20ms周期 */
     int32_t count = (int32_t)us * 4096 * 50 / 1000000;
     return (uint16_t)count;
+}
+
+/* 设置舵机角度
+ * servo_id 范围 0~15
+ * deg_x10 范围 -900~900
+ */
+esp_err_t servo_set_angle(i2c_port_t port, uint8_t servo_id, int16_t deg_x10)
+{
+    /* id:0-17 */
+    if (servo_id > 17) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (servo_id <= 8) {
+        return pca9685_set_pulse(port, PCA9685_ADDR_LEFT, servo_id, 0, pulse_us_to_count(servo_pulse_us(deg_x10)));
+    } else {
+        return pca9685_set_pulse(port, PCA9685_ADDR_RIGHT, servo_id - 9, 0, pulse_us_to_count(servo_pulse_us(deg_x10)));
+    }
 }
