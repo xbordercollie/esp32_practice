@@ -3,6 +3,8 @@
 #include "esp_rom_sys.h"
 #include <stdio.h>
 
+#define PCA9685_PWM_HZ 50
+
 esp_err_t pca9685_write_reg(i2c_port_t port, uint8_t addr, uint8_t reg, uint8_t val)
 {
     uint8_t buf[2] = {reg, val};
@@ -33,9 +35,9 @@ esp_err_t pca9685_init(i2c_port_t port, uint8_t addr)
         return err;
     }
 
-    /*3.Set the PRE_SCALE = 60*/
-    pre_scale = 60;
-    err = pca9685_write_reg(port, addr, PCA9685_PRE_SCALE, pre_scale);
+    /*3.Set the PRE_SCALE = 121*/
+    uint8_t prescale_tx = (uint8_t)(25000000.0f / (4096.0f * PCA9685_PWM_HZ) + 0.5f) - 1;
+    err = pca9685_write_reg(port, addr, PCA9685_PRE_SCALE, prescale_tx);
     if (err != ESP_OK) {
         return err;
     }
@@ -65,7 +67,7 @@ esp_err_t pca9685_init(i2c_port_t port, uint8_t addr)
     if (mode1 & PCA9685_MODE1_SLEEP) {
         return ESP_FAIL;
     }
-    if (pre_scale != 60) {
+    if (pre_scale != prescale_tx) {
         return ESP_FAIL;
     }
 
@@ -91,4 +93,22 @@ esp_err_t pca9685_set_pulse(i2c_port_t port, uint8_t addr, uint8_t ch,
     if (err != ESP_OK) return err;
 
     return ESP_OK;
+}
+
+uint16_t servo_pulse_us(int16_t deg_x10)
+{
+    /* 限幅 */
+    if (deg_x10 < -900) deg_x10 = -900;
+    if (deg_x10 > 900) deg_x10 = 900;
+
+    /* 0.1° → µs */
+    int32_t pulse = 1500 + (int16_t)deg_x10 * 1000 / 900;
+    return (uint16_t)pulse;
+}
+
+uint16_t pulse_us_to_count(uint16_t us)
+{
+    /* 50Hz → 20ms周期 */
+    int32_t count = (int32_t)us * 4096 * 50 / 1000000;
+    return (uint16_t)count;
 }

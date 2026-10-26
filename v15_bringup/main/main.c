@@ -39,10 +39,15 @@ void app_main(void)
         err = pca9685_init(I2C_NUM_0, PCA9685_ADDR_RIGHT);
         printf("PCA9685 right init: %s\n", esp_err_to_name(err));
     }
-    err = pca9685_set_pulse(I2C_NUM_0, PCA9685_ADDR_LEFT, 0, 0, 614);
+    err = pca9685_set_pulse(I2C_NUM_0, PCA9685_ADDR_LEFT, 0, 0, pulse_us_to_count(servo_pulse_us(0)));
     printf("set_pulse ch0: %s\n", esp_err_to_name(err));
+    int16_t deg_list[5] = {-900, -450, 0, 450, 900};
+    for (int i = 0; i < 5; i++) {
+        uint16_t us = servo_pulse_us(deg_list[i]);
+        printf("%d | %d | %d\n", deg_list[i], us, pulse_us_to_count(us));
+    }
 
-    i2c_master_init(I2C_NUM_1, 18, 19);
+    i2c_master_init(I2C_NUM_1, 14, 27);
     i2c_scan(I2C_NUM_1);
 
     /* TODO 5：建心跳任务。一行。 */

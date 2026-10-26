@@ -13,6 +13,10 @@
 #define PCA9685_MODE1_AI      (1 << 5)
 #define PCA9685_MODE1_RESTART (1 << 7)
 
+#define PCA9685_PWM_HZ      50
+uint16_t servo_pulse_us(int16_t deg_x10);      /* 角度(0.1°) → 脉宽(µs) */
+uint16_t pulse_us_to_count(uint16_t us);       /* 脉宽(µs) → 50Hz 计数 */
+
 esp_err_t pca9685_write_reg(i2c_port_t port, uint8_t addr, uint8_t reg, uint8_t val);
 esp_err_t pca9685_read_reg(i2c_port_t port, uint8_t addr, uint8_t reg, uint8_t *val);
 esp_err_t pca9685_init(i2c_port_t port, uint8_t addr);
