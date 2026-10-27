@@ -15,6 +15,17 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+/**
+ * @brief 单腿逆运动学
+ * @param x 足端坐标 X（mm）
+ * @param y 足端坐标 Y（mm）
+ * @param z 足端坐标 Z（mm）
+ * @param g 三关节几何参数（长度 mm）
+ * @param out 输出角度（度）
+ * @return 是否可达
+ */
+
+/* 传LegGeom指针是为了以后添加更多几何参数 现在没啥用 */
 bool ik_leg(double x, double y, double z, const struct LegGeom *g, struct IkAngles *out)
 {
     if (!g || !out) {

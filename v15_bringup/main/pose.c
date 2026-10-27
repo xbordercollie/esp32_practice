@@ -3,6 +3,11 @@
 #include "ik.h"
 #include "pca9685.h"
 
+/* 舵机校准参数
+ * 1. id[3] = { coxa, femur, tibia } 对应的 servo_id
+ * 2. inv[3] = { coxa, femur, tibia } 1 = 该关节反向（镜像安装）
+ * 3. horn[3] = { coxa, femur, tibia } 舵盘偏移 0.1°，先全 0，D5 现场改
+ */
 static const struct LegCal g_cal[6] = {
     /* LF */ { { 0,  1,  2}, {0,0,0}, {0,0,0} },
     /* LM */ { { 3,  4,  5}, {0,0,0}, {0,0,0} },
@@ -12,19 +17,22 @@ static const struct LegCal g_cal[6] = {
     /* RF */ { {15, 16, 17}, {0,1,1}, {0,0,0} },
 };
 
+/* 从解算角度推出舵机角度 包含校准过程 */
 bool pose_leg(uint8_t leg, const struct FootPos *foot)
 {
     if(foot == NULL || leg > 5) {
         return false;
     }
 
-    struct LegGeom  g = { LEG_COXA, LEG_FEMUR, LEG_TIBIA};
+    /* ik解算 判断是否可达 */
+    struct LegGeom  g = { LEG_COXA, LEG_FEMUR, LEG_TIBIA };
     struct IkAngles a = {0};
     if (!ik_leg(foot->x, foot->y, foot->z, &g, &a)) {
         printf("pose_leg: leg %d unreachable (%.0f %.0f %.0f)\n", leg, foot->x, foot->y, foot->z);
         return false;
     }
 
+    /* 计算实际舵机角度 （单腿三舵机）*/
     int16_t v[3];
     v[0] = (int16_t)((a.coxa_deg  - 90.0) * 10.0);
     v[1] = (int16_t)( a.femur_deg         * 10.0);
@@ -32,9 +40,11 @@ bool pose_leg(uint8_t leg, const struct FootPos *foot)
 
     uint8_t fail = 0;
     for (int j = 0; j < 3; j++) {
+        /* 反向安装的舵机角度取负 */
         if (g_cal[leg].inv[j]) {
             v[j] = (int16_t)(-v[j]);
         }
+        /* 加上舵盘偏移，发送给舵机 */
         v[j] = (int16_t)(v[j] + g_cal[leg].horn[j]);
         if (servo_set_angle(I2C_NUM_0, g_cal[leg].id[j], v[j]) != ESP_OK) {
             fail++;
@@ -46,10 +56,10 @@ bool pose_leg(uint8_t leg, const struct FootPos *foot)
     return fail == 0;
 }
 
-/* 常量{ 0,160,180 } */
+/* FootPos装的是足端相对基座的位置 */
 void pose_stand(void)
 {
-    struct FootPos p = { 0, 160, 180 };
+    struct FootPos p = { 0, 150, 160 };
     uint8_t fail = 0;
 
     for (uint8_t leg = 0; leg < 6; leg++) {

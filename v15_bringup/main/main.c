@@ -84,6 +84,7 @@ static void heartbeat_task(void *arg)
     }
 }
 
+/* 初始化 I2C 主机模式 */
 static void i2c_master_init(i2c_port_t port, int sda, int scl)
 {
     i2c_config_t conf = {
@@ -106,6 +107,7 @@ static void i2c_master_init(i2c_port_t port, int sda, int scl)
     }
 }
 
+/* 扫描 I2C 总线上的设备 */
 static void i2c_scan(i2c_port_t port)
 {
     printf("I2C Scan on port %d:\n", port);
