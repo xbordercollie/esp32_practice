@@ -14,6 +14,7 @@
 #include "pca9685.h"
 #include "ik.h"
 #include "pose.h"
+#include "gait.h"
 
 /* ==================== 各命令处理函数（统一签名） ==================== */
 
@@ -77,6 +78,34 @@ static void cmd_z(const char *arg)
     pose_stand();
 }
 
+static void cmd_w(const char *arg)
+{
+    int n = 1;
+    if (sscanf(arg, "%d", &n) != 1) {
+        n = 1;
+    }
+    if (n < 1 || n > 10) {
+        printf("usage: !W [1-10]\n");
+        return;
+    }
+    gait_walk((uint8_t)n);
+}
+
+static void cmd_g(const char *arg)
+{
+    int n = -1;
+    if (sscanf(arg, "%d", &n) == 1) {
+        if (n < 0 || n >= (int)gait_count()) {
+            printf("bad gait index (0..%u)\n", (unsigned)(gait_count() - 1));
+            return;
+        }
+        gait_select((uint8_t)n);
+    }
+    for (uint8_t i = 0; i < gait_count(); i++) {
+        printf("  %u: %-10s%s\n", i, gait_name(i), (i == gait_current()) ? "  <= current" : "");
+    }
+}
+
 /* ==================== 命令表：加命令只在这里加一行 ==================== */
 struct Cmd {
     const char *name;             /* 不含 '!' */
@@ -90,6 +119,8 @@ static const struct Cmd g_cmds[] = {
     { "T", cmd_t },
     { "I", cmd_i },
     { "Z", cmd_z },
+    { "W", cmd_w },
+    { "G", cmd_g },
     /* 新命令加在这里，例如： { "I", cmd_i }, */
 };
 

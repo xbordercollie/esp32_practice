@@ -133,20 +133,33 @@ uint16_t pulse_us_to_count(uint16_t us)
     return (uint16_t)count;
 }
 
+/* 舵机 id → 板/通道表（以硬件pcb为准）
+ *
+ * 两块板接线模式相同：D 网接 LED4..LED12 共 9 路（LED0~3 / LED13~15 空着），
+ * 所以 通道 = 4 + (id % 9)。注意原理图上的引脚号（10..13、15..19）不是 LED 序号：
+ *   pin10=LED4, pin11=LED5, pin12=LED6, pin13=LED7, pin15=LED8 … pin19=LED12
+ *
+ * 腿序：LF, LM, LR, RF, RM, RR —— 每条腿 “coxa, femur, tibia” ！！！
+ * 左板 0x40 = D0~D8 = LF/LM/LR；右板 0x41 = D9~D17 = RF/RM/RR
+ */
+static const struct { uint8_t addr; uint8_t ch; } g_servo_map[18] = {
+    /* LF */ { PCA9685_ADDR_LEFT,   4 }, { PCA9685_ADDR_LEFT,   5 }, { PCA9685_ADDR_LEFT,   6 },
+    /* LM */ { PCA9685_ADDR_LEFT,   7 }, { PCA9685_ADDR_LEFT,   8 }, { PCA9685_ADDR_LEFT,   9 },
+    /* LR */ { PCA9685_ADDR_LEFT,  10 }, { PCA9685_ADDR_LEFT,  11 }, { PCA9685_ADDR_LEFT,  12 },
+    /* RF */ { PCA9685_ADDR_RIGHT,  4 }, { PCA9685_ADDR_RIGHT,  5 }, { PCA9685_ADDR_RIGHT,  6 },
+    /* RM */ { PCA9685_ADDR_RIGHT,  7 }, { PCA9685_ADDR_RIGHT,  8 }, { PCA9685_ADDR_RIGHT,  9 },
+    /* RR */ { PCA9685_ADDR_RIGHT, 10 }, { PCA9685_ADDR_RIGHT, 11 }, { PCA9685_ADDR_RIGHT, 12 },
+};
+
 /* 设置舵机角度
- * servo_id 范围 0~15
- * deg_x10 范围 -900~900
+ * servo_id 范围 0~17（见 g_servo_map）
+ * deg_x10 范围 -900~900（0.1 度）
  */
 esp_err_t servo_set_angle(i2c_port_t port, uint8_t servo_id, int16_t deg_x10)
 {
-    /* id:0-17 */
     if (servo_id > 17) {
         return ESP_ERR_INVALID_ARG;
     }
-
-    if (servo_id <= 8) {
-        return pca9685_set_pulse(port, PCA9685_ADDR_LEFT, servo_id, 0, pulse_us_to_count(servo_pulse_us(deg_x10)));
-    } else {
-        return pca9685_set_pulse(port, PCA9685_ADDR_RIGHT, servo_id - 9, 0, pulse_us_to_count(servo_pulse_us(deg_x10)));
-    }
+    return pca9685_set_pulse(port, g_servo_map[servo_id].addr, g_servo_map[servo_id].ch,
+                             0, pulse_us_to_count(servo_pulse_us(deg_x10)));
 }
