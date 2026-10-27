@@ -13,6 +13,7 @@
 #include "power.h"
 #include "pca9685.h"
 #include "ik.h"
+#include "pose.h"
 
 /* ==================== 各命令处理函数（统一签名） ==================== */
 
@@ -70,6 +71,12 @@ static void cmd_i(const char *arg)
            x, y, z, a.coxa_deg, a.femur_deg, a.tibia_deg);
 }
 
+static void cmd_z(const char *arg)
+{
+    (void)arg;
+    pose_stand();
+}
+
 /* ==================== 命令表：加命令只在这里加一行 ==================== */
 struct Cmd {
     const char *name;             /* 不含 '!' */
@@ -82,6 +89,7 @@ static const struct Cmd g_cmds[] = {
     { "S", cmd_s },
     { "T", cmd_t },
     { "I", cmd_i },
+    { "Z", cmd_z },
     /* 新命令加在这里，例如： { "I", cmd_i }, */
 };
 
