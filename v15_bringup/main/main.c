@@ -99,7 +99,7 @@ static void i2c_master_init(i2c_port_t port, int sda, int scl)
         .scl_io_num = scl,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000, // 100 kHz
+        .master.clk_speed = (port == I2C_NUM_0) ? 400000 : 100000, // I2C0 带 18 路舵机，400 kHz
     };
     esp_err_t err = i2c_param_config(port, &conf);
     if (err != ESP_OK) {

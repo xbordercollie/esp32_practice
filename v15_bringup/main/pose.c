@@ -61,9 +61,10 @@ bool pose_leg(uint8_t leg, const struct FootPos *foot)
 }
 
 /* FootPos装的是足端相对基座的位置 */
+/* 站立姿势：x=0, y=STAND_Y, z=STAND_Z */
 void pose_stand(void)
 {
-    struct FootPos p = { 0, 150, 160 };
+    struct FootPos p = { 0, STAND_Y, STAND_Z };
     uint8_t fail = 0;
 
     for (uint8_t leg = 0; leg < 6; leg++) {

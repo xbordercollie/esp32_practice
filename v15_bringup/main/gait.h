@@ -7,6 +7,7 @@
 #define GAIT_L     40   /* 步长（前后摆幅 mm） */
 #define GAIT_H     20   /* 步高（抬腿高度 mm） */
 #define GAIT_MS   100   /* 每步时长 ms */
+#define GAIT_SUB   10   /* 每步切成几个子步（子步时长 = GAIT_MS / GAIT_SUB = 10 ms） */
 
 /**
  * @brief 走 cycles 个周期（每周期 gd->steps 步 × GAIT_MS 毫秒）
