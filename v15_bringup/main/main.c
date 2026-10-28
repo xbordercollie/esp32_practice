@@ -8,6 +8,7 @@
 #include "power.h"
 #include "cmd.h"
 #include "ina226.h"
+#include "gait.h"
 
 static void i2c_master_init(i2c_port_t port, int sda, int scl);
 static void i2c_scan(i2c_port_t port);
@@ -85,6 +86,17 @@ static void heartbeat_task(void *arg)
         if (i % 4 == 0) {
         printf("Heartbeat count: %d\n", i);     
     }
+        /* 低电压保护：只在走路时查逻辑包（0x45，I2C1），低于 6.90 V 让步态
+         * 在周期边界停下。不断舵机电源 —— 断了两条腿瘫倒更难看；
+         * 硬件 6.48 V 会自己硬断。 */
+        if (gait_is_walking()) {
+            int32_t mv = 0, ma = 0;
+            if (ina226_read(I2C_NUM_1, INA226_ADDR_LOGIC, &mv, &ma) == ESP_OK &&
+                mv < 6900) {
+                printf("LOW BATTERY %ld mV -> abort gait\n", (long)mv);
+                gait_abort();
+            }
+        }
         gpio_set_level(LED_PIN, !gpio_get_level(LED_PIN));
         vTaskDelay(pdMS_TO_TICKS(500));
     }

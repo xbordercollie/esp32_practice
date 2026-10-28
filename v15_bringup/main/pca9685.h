@@ -22,4 +22,7 @@ esp_err_t pca9685_read_reg(i2c_port_t port, uint8_t addr, uint8_t reg, uint8_t *
 esp_err_t pca9685_init(i2c_port_t port, uint8_t addr);
 esp_err_t pca9685_set_pulse(i2c_port_t port, uint8_t addr, uint8_t ch,
                             uint16_t on, uint16_t off);
-esp_err_t servo_set_angle(i2c_port_t port, uint8_t servo_id, int16_t deg_x10);                            
+esp_err_t servo_set_angle(i2c_port_t port, uint8_t servo_id, int16_t deg_x10);
+
+/* 最近一次成功写出的角度（0.1°，已钳到 ±900），!A 快照用 */
+extern int16_t g_servo_deg[18];                            

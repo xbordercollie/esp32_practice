@@ -21,6 +21,12 @@ static const struct LegCal g_cal[6] = {
     /* RR */ { {15, 16, 17}, {0,1,1}, {0,0,0} },
 };
 
+/* 站高：脚在基座下方多少 mm（越大机身越高）。!H 在运行时改这个值。 */
+double g_stand_y = 150.0;
+
+/* 站姿径向距离 mm（越大脚越外展）。!M 在运行时改这个值。 */
+double g_stand_z = STAND_Z;
+
 /* 从解算角度推出舵机角度 包含校准过程 */
 bool pose_leg(uint8_t leg, const struct FootPos *foot)
 {
@@ -54,9 +60,8 @@ bool pose_leg(uint8_t leg, const struct FootPos *foot)
             fail++;
         }
     }
-
-    printf("leg %u: coxa=%d femur=%d tibia=%d (%d fail)\n",
-           leg, v[0], v[1], v[2], fail);
+    /* 成功路径不打印：步态一圈会调 pose_leg 6×120 次，每帧 18 行 printf
+     * 会把 UART 塞爆（115200 只够 11 KB/s），任务被阻塞后步态节奏全乱。 */
     return fail == 0;
 }
 
@@ -64,7 +69,7 @@ bool pose_leg(uint8_t leg, const struct FootPos *foot)
 /* 站立姿势：x=0, y=STAND_Y, z=STAND_Z */
 void pose_stand(void)
 {
-    struct FootPos p = { 0, STAND_Y, STAND_Z };
+    struct FootPos p = { 0, g_stand_y, g_stand_z };
     uint8_t fail = 0;
 
     for (uint8_t leg = 0; leg < 6; leg++) {

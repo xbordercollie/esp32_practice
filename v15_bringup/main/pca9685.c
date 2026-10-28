@@ -155,11 +155,23 @@ static const struct { uint8_t addr; uint8_t ch; } g_servo_map[18] = {
  * servo_id 范围 0~17（见 g_servo_map）
  * deg_x10 范围 -900~900（0.1 度）
  */
+/* 最近一次成功写出的角度（0.1°，已钳到 ±900），!A 快照用 */
+int16_t g_servo_deg[18] = {0};
+
 esp_err_t servo_set_angle(i2c_port_t port, uint8_t servo_id, int16_t deg_x10)
 {
     if (servo_id > 17) {
         return ESP_ERR_INVALID_ARG;
     }
-    return pca9685_set_pulse(port, g_servo_map[servo_id].addr, g_servo_map[servo_id].ch,
-                             0, pulse_us_to_count(servo_pulse_us(deg_x10)));
+    /* 钳一次并记下来：记录的是真实发出的角度，不是调用者想发的 */
+    int16_t d = deg_x10;
+    if (d < -900) d = -900;
+    if (d > 900) d = 900;
+
+    esp_err_t err = pca9685_set_pulse(port, g_servo_map[servo_id].addr, g_servo_map[servo_id].ch,
+                                      0, pulse_us_to_count(servo_pulse_us(d)));
+    if (err == ESP_OK) {
+        g_servo_deg[servo_id] = d;
+    }
+    return err;
 }

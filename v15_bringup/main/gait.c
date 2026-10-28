@@ -50,15 +50,32 @@ static uint8_t g_gait_idx = 0;
  * 每次都是从 0 起步，走满 GAIT_RAMP 个周期才到满步幅。 */
 static double g_stride_scale = 0.0;
 
+/* 运行时可调参数（!U/!D 抬腿、!V 步频），初值来自 gait.h 的宏 */
+double   g_gait_h   = GAIT_H;
+uint16_t g_gait_ms  = GAIT_MS;
+uint8_t  g_gait_sub = GAIT_SUB;
+
+/* 中止请求：心跳任务发现电压过低时置位，gait_walk 在周期边界退出。
+ * volatile：两个任务都会读写，不能让编译器把它缓存在寄存器里。 */
+static volatile bool g_abort = false;
+static volatile bool g_walking = false;
+
+void gait_abort(void) { g_abort = true; }
+bool gait_is_walking(void) { return g_walking; }
+double gait_stride_scale(void) { return g_stride_scale; }
+
 uint8_t gait_count(void)   { return GAIT_COUNT; }
 uint8_t gait_current(void) { return g_gait_idx; }
 const char *gait_name(uint8_t i) { return (i < GAIT_COUNT) ? g_gaits[i].name : "?"; }
 
-/* 选择步态（下标越界则忽略） */
+/* 选择步态（下标越界则忽略）。
+ * 换表会把六条腿的相位偏移整体换掉，所以步幅一起归零、重新软启动，
+ * 否则会带着满步幅跳到新相位（最多跳半个步幅）。 */
 void gait_select(uint8_t idx)
 {
-    if (idx < GAIT_COUNT) {
+    if (idx < GAIT_COUNT && idx != g_gait_idx) {
         g_gait_idx = idx;
+        g_stride_scale = 0.0;
     }
 }
 
@@ -74,22 +91,29 @@ void gait_walk(uint8_t cycles)
     /* 支撑段步数 = 总步数 - 抬腿步数 */
     uint8_t stance = (uint8_t)(gd->steps - gd->lift);
 
+    g_abort = false;
+    g_walking = true;
+
     for (uint8_t c = 0; c < cycles; c++) {
+        if (g_abort) {
+            printf("gait: aborted at cycle %u (all six feet down)\n", c);
+            break;
+        }
         double travel = (double)GAIT_L * g_stride_scale;
         for (uint8_t step = 0; step < gd->steps; step++) {
-            for (uint8_t sub = 0; sub < GAIT_SUB; sub++) {
+            for (uint8_t sub = 0; sub < g_gait_sub; sub++) {
                 for (uint8_t leg = 0; leg < 6; leg++) {
                     /* 连续相位 = 第 step 步 + 这一步里的第 sub/GAIT_SUB 份 + 该腿偏移，
                      * 再折回 0 ~ steps。phase 是 double，不能用 % 取模，所以用 while 减。 */
                     double phase = (double)step
-                                 + (double)sub / (double)GAIT_SUB
+                                 + (double)sub / (double)g_gait_sub
                                  + (double)gd->off[leg];
                     while (phase >= (double)gd->steps) {
                         phase -= (double)gd->steps;
                     }
 
                     struct FootPos p;
-                    p.z = STAND_Z;
+                    p.z = g_stand_z;
 
                     if (phase < (double)gd->lift) {
                         /* 抬腿段：u 从 0 长到 1，x 从 -L/2 走到 +L/2。 */
@@ -99,26 +123,26 @@ void gait_walk(uint8_t cycles)
                         /* 当前曲线：y 走 sin²(πu)。
                          * 两端高度 0、两端竖直速度 0 → 落地无冲击；
                          * 子步加密后峰值也是满高 H=20 mm（12 帧版只有 15 mm 是采样问题）。 */
-                        p.y = STAND_Y - (double)GAIT_H * sin(M_PI * u) * sin(M_PI * u);
+                        p.y = g_stand_y - g_gait_h * sin(M_PI * u) * sin(M_PI * u);
 
                         /* ===== 备选：抛物线 4u(1-u)（2026-10-27 版，留作对照）=====
                          * 差异只有 y：
                          *   峰值同样 20 mm，但落地竖直速度 = 200 mm/s（会砸）；
                          *   好处是两端抬得快 —— 离地 5 mm 只要 27 ms，sin² 要 67 ms。
                          *   坡道/杂物上出现粘脚（脚还没抬起来就往前扫）就换回这一行：
-                         * p.y = STAND_Y - (double)GAIT_H * 4.0 * u * (1.0 - u);
+                         * p.y = g_stand_y - (double)GAIT_H * 4.0 * u * (1.0 - u);
                          * ============================================================ */
                     } else {
                         /* 支撑段：x 从 +L/2 匀速退到 -L/2（脚相对机身往后走） */
                         double s = phase - (double)gd->lift;
                         p.x = travel * (0.5 - s / (double)stance);
-                        p.y = STAND_Y;
+                        p.y = g_stand_y;
                     }
                     /* 发送给 pose_leg 下发舵机 */
                     pose_leg(leg, &p);
                 }
-                /* 一个子步 = GAIT_MS / GAIT_SUB 毫秒 */
-                vTaskDelay(pdMS_TO_TICKS(GAIT_MS / GAIT_SUB));
+                /* 一个子步 = g_gait_ms / g_gait_sub 毫秒（固定 10 ms） */
+                vTaskDelay(pdMS_TO_TICKS(g_gait_ms / g_gait_sub));
             }
         }
 
@@ -131,6 +155,7 @@ void gait_walk(uint8_t cycles)
             g_stride_scale = 1.0;
         }
     }
+    g_walking = false;
     printf("gait: %s x%u done\n", gd->name, cycles);
 }
 
