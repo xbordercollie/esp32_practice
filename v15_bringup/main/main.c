@@ -7,6 +7,7 @@
 #include "pca9685.h"
 #include "power.h"
 #include "cmd.h"
+#include "ina226.h"
 
 static void i2c_master_init(i2c_port_t port, int sda, int scl);
 static void i2c_scan(i2c_port_t port);
@@ -57,6 +58,11 @@ void app_main(void)
     /* 初始化 I2C 并扫描设备 */
     i2c_master_init(I2C_NUM_1, 14, 27);
     i2c_scan(I2C_NUM_1);
+
+    /* 两颗 INA226：0x44 舵机包在 I2C0、0x45 逻辑包在 I2C1 */
+    esp_err_t t1 = ina226_init(I2C_NUM_0, INA226_ADDR_SERVO);
+    esp_err_t t2 = ina226_init(I2C_NUM_1, INA226_ADDR_LOGIC);
+    printf("INA226 init: servo=%s, logic=%s\n", esp_err_to_name(t1), esp_err_to_name(t2));
 
     /* TODO 4：建心跳任务。一行。 */
     xTaskCreate(cmd_task, "cmd_task", 4096, NULL, 5, NULL);

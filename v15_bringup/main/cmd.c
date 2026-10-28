@@ -15,6 +15,7 @@
 #include "ik.h"
 #include "pose.h"
 #include "gait.h"
+#include "ina226.h"
 
 /* ==================== 各命令处理函数（统一签名） ==================== */
 
@@ -106,6 +107,28 @@ static void cmd_g(const char *arg)
     }
 }
 
+static void cmd_b(const char *arg)
+{
+    (void)arg;
+    int32_t mv = 0, ma = 0;
+
+    if (ina226_read(I2C_NUM_0, INA226_ADDR_SERVO, &mv, &ma) == ESP_OK) {
+        printf("servo pack: %ld mV  %ld mA\n", (long)mv, (long)ma);
+    } else {
+        printf("servo pack: read fail\n");
+    }
+    if (ina226_read(I2C_NUM_1, INA226_ADDR_LOGIC, &mv, &ma) == ESP_OK) {
+        /* 逻辑包放电时读数为负，这里取绝对值显示，另标放电方向 */
+        printf("logic pack: %ld mV  %ld mA (discharge reads negative)\n",
+               (long)mv, (long)ma);
+        if (mv < 6900) {
+            printf("WARN: logic pack below 6.90 V soft-stop threshold\n");
+        }
+    } else {
+        printf("logic pack: read fail\n");
+    }
+}
+
 /* ==================== 命令表：加命令只在这里加一行 ==================== */
 struct Cmd {
     const char *name;             /* 不含 '!' */
@@ -121,6 +144,7 @@ static const struct Cmd g_cmds[] = {
     { "Z", cmd_z },
     { "W", cmd_w },
     { "G", cmd_g },
+    { "B", cmd_b },
     /* 新命令加在这里，例如： { "I", cmd_i }, */
 };
 
