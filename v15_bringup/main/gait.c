@@ -21,8 +21,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define STAND_Y  150.0   /* 站姿高度，与 pose_stand 一致 */
-#define STAND_Z  160.0   /* 站姿径向距离 */
+/* STAND_Y / STAND_Z 在 pose.h 里（pose_stand 与 gait_walk 共用）。 */
 
 /* 一张步态表的定义。off[] 的顺序必须和 pose.c 的 g_cal 一致：
  * LF, LM, LR, RF, RM, RR（v1 是 RR,RM,RF,LR,LM,LF，已重排）。 */
@@ -47,6 +46,9 @@ static const struct GaitDef g_gaits[] = {
 #define GAIT_COUNT  ((uint8_t)(sizeof(g_gaits) / sizeof(g_gaits[0])))
 
 static uint8_t g_gait_idx = 0;
+/* 软启动用的步幅比例 0~1，跨 !W 调用保留：
+ * 每次都是从 0 起步，走满 GAIT_RAMP 个周期才到满步幅。 */
+static double g_stride_scale = 0.0;
 
 uint8_t gait_count(void)   { return GAIT_COUNT; }
 uint8_t gait_current(void) { return g_gait_idx; }
@@ -73,6 +75,7 @@ void gait_walk(uint8_t cycles)
     uint8_t stance = (uint8_t)(gd->steps - gd->lift);
 
     for (uint8_t c = 0; c < cycles; c++) {
+        double travel = (double)GAIT_L * g_stride_scale;
         for (uint8_t step = 0; step < gd->steps; step++) {
             for (uint8_t sub = 0; sub < GAIT_SUB; sub++) {
                 for (uint8_t leg = 0; leg < 6; leg++) {
@@ -91,9 +94,9 @@ void gait_walk(uint8_t cycles)
                     if (phase < (double)gd->lift) {
                         /* 抬腿段：u 从 0 长到 1，x 从 -L/2 走到 +L/2。 */
                         double u = phase / (double)gd->lift;
-                        p.x = (double)GAIT_L * (u - 0.5);
+                        p.x = travel * (u - 0.5);
 
-                        /* 当前曲线（2026-10-28 学生拍板）：y 走 sin²(πu)。
+                        /* 当前曲线：y 走 sin²(πu)。
                          * 两端高度 0、两端竖直速度 0 → 落地无冲击；
                          * 子步加密后峰值也是满高 H=20 mm（12 帧版只有 15 mm 是采样问题）。 */
                         p.y = STAND_Y - (double)GAIT_H * sin(M_PI * u) * sin(M_PI * u);
@@ -108,7 +111,7 @@ void gait_walk(uint8_t cycles)
                     } else {
                         /* 支撑段：x 从 +L/2 匀速退到 -L/2（脚相对机身往后走） */
                         double s = phase - (double)gd->lift;
-                        p.x = (double)GAIT_L * (0.5 - s / (double)stance);
+                        p.x = travel * (0.5 - s / (double)stance);
                         p.y = STAND_Y;
                     }
                     /* 发送给 pose_leg 下发舵机 */
@@ -117,6 +120,15 @@ void gait_walk(uint8_t cycles)
                 /* 一个子步 = GAIT_MS / GAIT_SUB 毫秒 */
                 vTaskDelay(pdMS_TO_TICKS(GAIT_MS / GAIT_SUB));
             }
+        }
+
+        /* 这一圈走完再提档：第一圈 travel=0（原地踏步），走满 GAIT_RAMP 圈到 100%。
+         * 顺序不能反 —— 先提档再走，第一圈就不是原地踏步了。 */
+        if (g_stride_scale < 1.0) {
+            g_stride_scale += 1.0 / (double)GAIT_RAMP;
+        }
+        if (g_stride_scale > 1.0) {
+            g_stride_scale = 1.0;
         }
     }
     printf("gait: %s x%u done\n", gd->name, cycles);

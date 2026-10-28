@@ -8,6 +8,7 @@
 #define GAIT_H     20   /* 步高（抬腿高度 mm） */
 #define GAIT_MS   100   /* 每步时长 ms */
 #define GAIT_SUB   10   /* 每步切成几个子步（子步时长 = GAIT_MS / GAIT_SUB = 10 ms） */
+#define GAIT_RAMP  2    /* 软启动：走满 GAIT_RAMP 个周期后步幅到 100%（2 → 0/20/40，第 3 圈满速） */
 
 /**
  * @brief 走 cycles 个周期（每周期 gd->steps 步 × GAIT_MS 毫秒）
