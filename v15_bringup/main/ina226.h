@@ -10,6 +10,11 @@
 #define INA226_ADDR_SERVO   0x44
 #define INA226_ADDR_LOGIC   0x45
 
+/* 舵机包过流告警阈值（ALERT_S 引脚）。20A @ 1mΩ = 20mV = 8000 LSB。
+ * 低于 HY2120 的 ~28.6A 硬件保护，作为软件提前告警；现场可改。 */
+#define INA226_SERVO_ALERT_MA      20000
+#define INA226_SERVO_ALERT_LIMIT   8000
+
 /**
  * @brief 配置 + 写校准寄存器
  * @note 必须在对应 I2C 总线初始化之后调用；0x44 在 I2C0、0x45 在 I2C1
